@@ -26,13 +26,60 @@ the bugs live, and they are testable in milliseconds without an emulator.
 
 ## Building
 
-Requires JDK 17+ and the Android SDK (API 35). Android Studio writes `local.properties`
-for you; otherwise copy `local.properties.example` and point `sdk.dir` at your SDK.
+### The IPTV logic — JDK only
+
+No Android SDK, no IDE. This is where the parsing and API work lives, so most
+development happens here:
 
 ```bash
-./gradlew :core:test        # the IPTV logic — no Android SDK needed
-./gradlew :app:assembleDebug
+./gradlew :core:test
 ```
+
+### The APK without installing anything
+
+Every push builds a debug APK in GitHub Actions. Open the run under the repository's
+**Actions** tab and download the `b1gplayer-debug-apk` artifact. Install it with
+`adb install b1gplayer-debug.apk`, or copy it to the device and open it with a file
+manager (Android TV needs "install unknown apps" enabled for that file manager).
+
+### Building the APK locally, without Android Studio
+
+Android Studio is a convenience, not a requirement — the SDK ships as a standalone
+command-line package.
+
+1. Install a JDK 17 or newer.
+2. Download **command line tools only** from
+   <https://developer.android.com/studio#command-line-tools-only> and unpack so the
+   binaries sit at `<sdk>/cmdline-tools/latest/bin`:
+
+   ```bash
+   mkdir -p ~/android-sdk/cmdline-tools
+   unzip commandlinetools-*.zip -d ~/android-sdk/cmdline-tools
+   mv ~/android-sdk/cmdline-tools/cmdline-tools ~/android-sdk/cmdline-tools/latest
+   ```
+
+3. Install the packages this project needs and accept the licences:
+
+   ```bash
+   export ANDROID_HOME=~/android-sdk
+   export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+   yes | sdkmanager --licenses
+   sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+   ```
+
+4. Point the build at it and build:
+
+   ```bash
+   echo "sdk.dir=$HOME/android-sdk" > local.properties
+   ./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/
+   ./gradlew installDebug              # straight onto a connected device
+   ```
+
+On Windows use the same steps with `%ANDROID_HOME%` and `gradlew.bat`; the SDK path in
+`local.properties` needs escaped backslashes (`sdk.dir=C\:\\Users\\you\\android-sdk`).
+
+For editing, VS Code with the Kotlin extension works well enough for this codebase —
+the Gradle build is the source of truth either way.
 
 ## What the two login modes do
 
