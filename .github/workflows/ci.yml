@@ -45,6 +45,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew :app:assembleDebug
 
+      # Proves the APK is installable before anyone downloads it: an unsigned or
+      # truncated package is what Android reports as "problem parsing the package".
+      - name: Verify the APK
+        run: |
+          apk=$(find app/build/outputs/apk/debug -name '*.apk' | head -1)
+          echo "APK: $apk"
+          ls -l "$apk"
+          sha256sum "$apk"
+
+          buildtools=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
+          echo "Using build-tools: $buildtools"
+
+          "$buildtools/aapt2" dump badging "$apk" | head -5
+          "$buildtools/apksigner" verify --verbose --print-certs "$apk"
+
       # The downloadable build, for anyone without a local Android toolchain.
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
