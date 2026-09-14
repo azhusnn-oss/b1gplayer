@@ -33,7 +33,10 @@ class XtreamContentSource(
             is XtreamAuthResult.Rejected -> ConnectResult.Failure(result.reason)
         }
     } catch (e: IOException) {
-        ConnectResult.Failure("Could not reach ${config.server.baseUrl}", e)
+        ConnectResult.Failure(
+            describeNetworkFailure("Could not reach ${config.server.baseUrl}", e),
+            e,
+        )
     } catch (e: Exception) {
         ConnectResult.Failure("Unexpected response from server", e)
     }

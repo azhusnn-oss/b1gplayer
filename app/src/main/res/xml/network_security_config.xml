@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+      IPTV providers are overwhelmingly plain HTTP on a high port, and the user
+      supplies the host at runtime, so cleartext cannot be narrowed to a known
+      domain list. Without this, every http:// playlist and panel fails with
+      UnknownServiceException on Android 9 and above.
+    -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

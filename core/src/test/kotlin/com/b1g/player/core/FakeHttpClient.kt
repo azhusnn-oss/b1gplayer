@@ -7,6 +7,8 @@ import com.b1g.player.core.http.HttpResponse
 class FakeHttpClient(
     private val routes: List<Pair<String, String>> = emptyList(),
     private val statusCode: Int = 200,
+    /** Thrown instead of answering, to exercise the network failure paths. */
+    private val failWith: Exception? = null,
 ) : HttpClient {
 
     val requestedUrls = mutableListOf<String>()
@@ -17,6 +19,7 @@ class FakeHttpClient(
     override suspend fun get(url: String, headers: Map<String, String>): HttpResponse {
         requestedUrls += url
         requestedHeaders += headers
+        failWith?.let { throw it }
         val body = routes.firstOrNull { (match, _) -> match.isEmpty() || url.contains(match) }?.second
             ?: error("No fake route matches $url")
         return HttpResponse(statusCode, body.byteInputStream())

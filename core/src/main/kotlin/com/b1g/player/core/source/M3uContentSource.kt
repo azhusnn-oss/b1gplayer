@@ -52,7 +52,7 @@ class M3uContentSource(
     } catch (e: HttpException) {
         ConnectResult.Failure("Playlist rejected the request (HTTP ${e.statusCode})", e)
     } catch (e: IOException) {
-        ConnectResult.Failure("Could not download the playlist", e)
+        ConnectResult.Failure(describeNetworkFailure("Could not download the playlist", e), e)
     }
 
     /** Re-downloads and re-parses the playlist, replacing the in-memory snapshot. */
