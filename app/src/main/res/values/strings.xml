@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">B1G Player</string>
+
+    <string name="login_title">Add a source</string>
+    <string name="login_tab_xtream">Xtream</string>
+    <string name="login_tab_m3u">M3U playlist</string>
+    <string name="login_display_name">Name this source</string>
+    <string name="login_server">Server (host or http://host:port)</string>
+    <string name="login_username">Username</string>
+    <string name="login_password">Password</string>
+    <string name="login_playlist_url">Playlist URL</string>
+    <string name="login_epg_url">EPG URL (optional)</string>
+    <string name="login_user_agent">User agent (optional)</string>
+    <string name="login_connect">Connect</string>
+    <string name="login_connecting">Connecting…</string>
+
+    <string name="error_server_required">Enter the server address</string>
+    <string name="error_server_invalid">That does not look like a server address</string>
+    <string name="error_username_required">Enter your username</string>
+    <string name="error_password_required">Enter your password</string>
+    <string name="error_playlist_required">Enter the playlist URL</string>
+    <string name="error_playlist_scheme">The playlist URL must start with http:// or https://</string>
+
+    <string name="browse_tab_live">Live TV</string>
+    <string name="browse_tab_movies">Movies</string>
+    <string name="browse_tab_series">Series</string>
+    <string name="browse_all_categories">All</string>
+    <string name="browse_search">Search</string>
+    <string name="browse_empty">Nothing here yet</string>
+    <string name="browse_retry">Retry</string>
+    <string name="browse_sign_out">Remove source</string>
+</resources>
