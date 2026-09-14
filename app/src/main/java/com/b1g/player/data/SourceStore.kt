@@ -8,6 +8,7 @@ import com.b1g.player.core.model.SourceConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /**
@@ -51,17 +52,20 @@ class SourceStore(context: Context) {
     }
 
     private fun write(sources: List<SourceConfig>) {
-        prefs.edit().putString(KEY_SOURCES, json.encodeToString(sources)).apply()
+        prefs.edit().putString(KEY_SOURCES, json.encodeToString(serializer, sources)).apply()
         _sources.value = sources
     }
 
     private fun read(): List<SourceConfig> {
         val raw = prefs.getString(KEY_SOURCES, null) ?: return emptyList()
         // A stored blob written by an older schema must not crash the launch path.
-        return runCatching { json.decodeFromString<List<SourceConfig>>(raw) }.getOrDefault(emptyList())
+        return runCatching { json.decodeFromString(serializer, raw) }.getOrDefault(emptyList())
     }
 
     private companion object {
+        /** Named explicitly rather than reified, so the sealed hierarchy is used. */
+        val serializer = ListSerializer(SourceConfig.serializer())
+
         const val FILE_NAME = "b1g_sources"
         const val KEY_SOURCES = "sources"
         const val KEY_LAST_USED = "last_used"
