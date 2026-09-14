@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
@@ -114,7 +115,9 @@ fun BrowseScreen(
         }
 
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(rows, key = { it.id }) { item ->
+            // Keyed by position as well as id: playlists routinely repeat a
+            // tvg-id across entries, and a duplicate key crashes LazyColumn.
+            itemsIndexed(rows, key = { index, item -> "${item.id}#$index" }) { _, item ->
                 ContentRow(
                     item = item,
                     onClick = {

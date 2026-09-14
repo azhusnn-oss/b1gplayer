@@ -6,6 +6,7 @@ import com.b1g.player.core.http.HttpClient
 import com.b1g.player.core.http.OkHttpEngine
 import com.b1g.player.core.source.ContentSource
 import com.b1g.player.core.source.ContentSourceFactory
+import com.b1g.player.data.CrashReporter
 import com.b1g.player.data.SourceStore
 
 /**
@@ -18,6 +19,7 @@ class AppContainer(context: Context) {
     val httpClient: HttpClient = OkHttpEngine()
     val sourceFactory = ContentSourceFactory(httpClient)
     val sourceStore = SourceStore(context.applicationContext)
+    val crashReporter = CrashReporter(context.applicationContext)
 
     /** The source the user is currently browsing, kept alive across screens. */
     @Volatile
@@ -31,6 +33,7 @@ class B1gPlayerApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        container.crashReporter.install()
     }
 }
 

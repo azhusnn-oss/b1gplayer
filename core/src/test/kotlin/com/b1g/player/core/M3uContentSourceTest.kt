@@ -89,7 +89,23 @@ class M3uContentSourceTest {
         val after = source.liveChannels().map { it.id }
 
         assertEquals(before, after)
-        assertEquals("bbc1.uk", before.first())
+    }
+
+    @Test
+    fun `gives entries sharing a tvg-id distinct ids`() = runTest {
+        val shared = """
+            #EXTM3U
+            #EXTINF:-1 tvg-id="sports.uk",Sports One
+            http://host:8080/live/u/p/10.ts
+            #EXTINF:-1 tvg-id="sports.uk",Sports Two
+            http://host:8080/live/u/p/11.ts
+        """.trimIndent()
+
+        val channels = M3uContentSource(config(), FakeHttpClient(shared)).liveChannels()
+
+        assertEquals(2, channels.map { it.id }.distinct().size)
+        // The guide id is still shared, which is what EPG matching needs.
+        assertEquals(listOf("sports.uk", "sports.uk"), channels.map { it.epgChannelId })
     }
 
     @Test

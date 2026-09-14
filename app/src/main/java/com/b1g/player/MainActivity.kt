@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.b1g.player.core.source.ContentSource
+import com.b1g.player.ui.CrashScreen
 import com.b1g.player.ui.browse.BrowseScreen
 import com.b1g.player.ui.browse.BrowseViewModel
 import com.b1g.player.ui.login.LoginScreen
@@ -46,6 +47,21 @@ private fun AppRoot() {
     val container = LocalContext.current.appContainer
     var source by remember { mutableStateOf<ContentSource?>(container.activeSource) }
     val context = LocalContext.current
+
+    // A crash from the previous run is shown before anything else, since the app
+    // is installed by sideloading and has no other way to report one.
+    var crashReport by remember { mutableStateOf(container.crashReporter.lastCrash()) }
+    val report = crashReport
+    if (report != null) {
+        CrashScreen(
+            report = report,
+            onDismiss = {
+                container.crashReporter.clear()
+                crashReport = null
+            },
+        )
+        return
+    }
 
     val current = source
     if (current == null) {

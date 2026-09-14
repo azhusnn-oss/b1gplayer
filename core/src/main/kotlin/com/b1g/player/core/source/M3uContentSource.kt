@@ -130,12 +130,13 @@ class M3uContentSource(
         internal fun categoryId(groupTitle: String): String = groupTitle.lowercase().trim()
 
         /**
-         * Playlist rows have no server-assigned id, so `tvg-id` is used when present
-         * and a hash of the URL otherwise. Both are stable across refreshes, which is
-         * what favourites and resume points need.
+         * Playlist rows have no server-assigned id, so the stream URL is the identity:
+         * it is stable across refreshes, which favourites and resume points need, and
+         * unique, which `tvg-id` is not — playlists routinely repeat one across many
+         * entries. The `tvg-id` is kept separately for guide matching.
          */
         internal fun stableId(entry: M3uEntry): String =
-            entry.tvgId ?: "url:${entry.url.hashCode().toUInt().toString(16)}"
+            "url:${entry.url.hashCode().toUInt().toString(16)}"
 
         private fun M3uEntry.streamRequest(config: SourceConfig.M3u): StreamRequest {
             val merged = buildMap {
