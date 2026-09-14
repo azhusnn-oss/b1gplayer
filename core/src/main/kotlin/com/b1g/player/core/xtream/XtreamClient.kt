@@ -11,6 +11,10 @@ import com.b1g.player.core.model.Series
 import com.b1g.player.core.model.SourceConfig
 import com.b1g.player.core.model.StreamRequest
 import com.b1g.player.core.model.VodItem
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -54,7 +58,7 @@ class XtreamClient(
 ) {
 
     suspend fun authenticate(config: SourceConfig.Xtream): XtreamAuthResult {
-        val response = decode<AuthResponseDto>(XtreamUrls.playerApi(config), config)
+        val response = decode(XtreamUrls.playerApi(config), config, AuthResponseDto.serializer())
         val info = response.userInfo
             ?: return XtreamAuthResult.Rejected("Server did not return account information")
 
@@ -84,8 +88,11 @@ class XtreamClient(
             ContentKind.VOD -> "get_vod_categories"
             ContentKind.SERIES -> "get_series_categories"
         }
-        return decode<List<CategoryDto>>(XtreamUrls.playerApi(config, action), config)
-            .mapNotNull { dto ->
+        return decode(
+            XtreamUrls.playerApi(config, action),
+            config,
+            ListSerializer(CategoryDto.serializer()),
+        ).mapNotNull { dto ->
                 val id = dto.id ?: return@mapNotNull null
                 Category(id = id, name = dto.name ?: id, kind = kind)
             }
@@ -96,9 +103,10 @@ class XtreamClient(
         categoryId: String? = null,
         extension: String = "m3u8",
     ): List<LiveChannel> =
-        decode<List<LiveStreamDto>>(
+        decode(
             XtreamUrls.playerApi(config, "get_live_streams", categoryParams(categoryId)),
             config,
+            ListSerializer(LiveStreamDto.serializer()),
         ).mapNotNull { dto ->
             val id = dto.streamId ?: return@mapNotNull null
             LiveChannel(
@@ -115,9 +123,10 @@ class XtreamClient(
         }
 
     suspend fun vodStreams(config: SourceConfig.Xtream, categoryId: String? = null): List<VodItem> =
-        decode<List<VodStreamDto>>(
+        decode(
             XtreamUrls.playerApi(config, "get_vod_streams", categoryParams(categoryId)),
             config,
+            ListSerializer(VodStreamDto.serializer()),
         ).mapNotNull { dto ->
             val id = dto.streamId ?: return@mapNotNull null
             VodItem(
@@ -135,9 +144,10 @@ class XtreamClient(
         }
 
     suspend fun series(config: SourceConfig.Xtream, categoryId: String? = null): List<Series> =
-        decode<List<SeriesDto>>(
+        decode(
             XtreamUrls.playerApi(config, "get_series", categoryParams(categoryId)),
             config,
+            ListSerializer(SeriesDto.serializer()),
         ).mapNotNull { dto ->
             val id = dto.seriesId ?: return@mapNotNull null
             Series(
@@ -157,9 +167,10 @@ class XtreamClient(
      * panels with nothing to report send an empty array instead, so both are handled.
      */
     suspend fun episodes(config: SourceConfig.Xtream, seriesId: String): List<Episode> {
-        val info = decode<SeriesInfoDto>(
+        val info = decode(
             XtreamUrls.playerApi(config, "get_series_info", mapOf("series_id" to seriesId)),
             config,
+            SeriesInfoDto.serializer(),
         )
         val episodes = info.episodes
         val seasons: Map<String, JsonArray> = when (episodes) {
@@ -194,13 +205,14 @@ class XtreamClient(
 
     /** The next few programmes for a channel. Titles arrive base64-encoded. */
     suspend fun shortEpg(config: SourceConfig.Xtream, streamId: String, limit: Int = 8): List<EpgEntry> =
-        decode<ShortEpgDto>(
+        decode(
             XtreamUrls.playerApi(
                 config,
                 "get_short_epg",
                 mapOf("stream_id" to streamId, "limit" to limit.toString()),
             ),
             config,
+            ShortEpgDto.serializer(),
         ).listings.mapNotNull { listing ->
             val start = listing.startTimestamp ?: return@mapNotNull null
             val end = listing.stopTimestamp ?: return@mapNotNull null
@@ -222,12 +234,21 @@ class XtreamClient(
     private fun headersFor(config: SourceConfig.Xtream): Map<String, String> =
         config.userAgent?.let { mapOf("User-Agent" to it) } ?: emptyMap()
 
-    private suspend inline fun <reified T> decode(url: String, config: SourceConfig.Xtream): T {
+    /**
+     * Runs on [Dispatchers.IO]. Reading the response body is network I/O — the socket
+     * is still open when the call returns — and a panel's stream list is large enough
+     * that parsing it does not belong on a caller's thread either.
+     */
+    private suspend fun <T> decode(
+        url: String,
+        config: SourceConfig.Xtream,
+        deserializer: DeserializationStrategy<T>,
+    ): T = withContext(Dispatchers.IO) {
         val body = http.get(url, headersFor(config)).use { response ->
             if (!response.isSuccessful) throw HttpException(response.statusCode, url)
             response.body.readBytes().toString(Charsets.UTF_8)
         }
-        return json.decodeFromString(body)
+        json.decodeFromString(deserializer, body)
     }
 
     companion object {

@@ -14,8 +14,10 @@ import com.b1g.player.core.model.Series
 import com.b1g.player.core.model.SourceConfig
 import com.b1g.player.core.model.StreamRequest
 import com.b1g.player.core.model.VodItem
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.IOException
 
 /**
@@ -87,7 +89,11 @@ class M3uContentSource(
 
     private suspend fun require(): Snapshot = snapshot ?: reload()
 
-    private suspend fun load(): Snapshot {
+    /**
+     * Runs on [Dispatchers.IO]: the response body is a live socket, so parsing it is
+     * network I/O no matter which thread the caller happens to be on.
+     */
+    private suspend fun load(): Snapshot = withContext(Dispatchers.IO) {
         val headers = config.userAgent?.let { mapOf("User-Agent" to it) } ?: emptyMap()
         var header = M3uHeader()
         val live = ArrayList<LiveChannel>()
@@ -107,7 +113,7 @@ class M3uContentSource(
             )
         }
 
-        return Snapshot(
+        Snapshot(
             header = header,
             live = live,
             vod = vod,
