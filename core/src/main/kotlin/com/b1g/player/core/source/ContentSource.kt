@@ -59,8 +59,18 @@ interface ContentSource {
         offset: Int = 0,
     ): List<VodItem>
 
-    /** Empty for playlist sources, which cannot express a series/episode tree. */
-    suspend fun series(categoryId: String? = null): List<Series>
+    /**
+     * One page of series.
+     *
+     * Xtream reports these directly; a playlist source reconstructs them by grouping
+     * its `/series/` entries on the show name in their titles.
+     */
+    suspend fun series(
+        categoryId: String? = null,
+        query: String? = null,
+        limit: Int = ContentStore.DEFAULT_PAGE,
+        offset: Int = 0,
+    ): List<Series>
 
     suspend fun episodes(seriesId: String): List<Episode>
 

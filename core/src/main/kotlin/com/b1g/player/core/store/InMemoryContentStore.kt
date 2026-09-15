@@ -2,7 +2,9 @@ package com.b1g.player.core.store
 
 import com.b1g.player.core.model.Category
 import com.b1g.player.core.model.ContentKind
+import com.b1g.player.core.model.Episode
 import com.b1g.player.core.model.LiveChannel
+import com.b1g.player.core.model.Series
 import com.b1g.player.core.model.VodItem
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -21,6 +23,7 @@ class InMemoryContentStore(
     private class Bucket {
         val live = ArrayList<LiveChannel>()
         val vod = ArrayList<VodItem>()
+        val episodes = ArrayList<EpisodeRow>()
         var refreshedAt: Long? = null
         var epgUrl: String? = null
     }
@@ -34,6 +37,7 @@ class InMemoryContentStore(
             override fun header(epgUrl: String?) { staged.epgUrl = epgUrl }
             override fun live(channels: List<LiveChannel>) { staged.live += channels }
             override fun vod(items: List<VodItem>) { staged.vod += items }
+            override fun episodes(rows: List<EpisodeRow>) { staged.episodes += rows }
         }
 
         // Filled outside the lock and swapped in only on success, so a failed
@@ -50,7 +54,8 @@ class InMemoryContentStore(
             val names = when (kind) {
                 ContentKind.LIVE -> bucket.live.map { it.categoryId to it.categoryName }
                 ContentKind.VOD -> bucket.vod.map { it.categoryId to it.categoryName }
-                ContentKind.SERIES -> return emptyList()
+                ContentKind.SERIES ->
+                    bucket.episodes.map { it.series.categoryId to it.series.categoryName }
             }
             names.filter { (id, name) -> id != null && name != null }
                 .distinctBy { it.first }
@@ -90,9 +95,40 @@ class InMemoryContentStore(
             .toList()
     }
 
+    override suspend fun series(
+        sourceId: String,
+        categoryId: String?,
+        query: String?,
+        limit: Int,
+        offset: Int,
+    ): List<Series> = lock.withLock {
+        buckets[sourceId]?.episodes.orEmpty()
+            .asSequence()
+            .filter { categoryId == null || it.series.categoryId == categoryId }
+            .filter { matches(it.series.name, query) }
+            .groupBy { it.series.id }
+            .map { (_, rows) -> rows.first().series.copy(episodeCount = rows.size) }
+            .sortedBy { it.name }
+            .drop(offset)
+            .take(limit)
+            .toList()
+    }
+
+    override suspend fun episodes(sourceId: String, seriesId: String): List<Episode> =
+        lock.withLock {
+            buckets[sourceId]?.episodes.orEmpty()
+                .filter { it.series.id == seriesId }
+                .map { it.episode }
+                .sortedWith(compareBy({ it.seasonNumber }, { it.episodeNumber }))
+        }
+
     override suspend fun counts(sourceId: String): ContentCounts = lock.withLock {
         val bucket = buckets[sourceId]
-        ContentCounts(live = bucket?.live?.size ?: 0, vod = bucket?.vod?.size ?: 0)
+        ContentCounts(
+            live = bucket?.live?.size ?: 0,
+            vod = bucket?.vod?.size ?: 0,
+            episodes = bucket?.episodes?.size ?: 0,
+        )
     }
 
     override suspend fun lastRefreshedAt(sourceId: String): Long? =

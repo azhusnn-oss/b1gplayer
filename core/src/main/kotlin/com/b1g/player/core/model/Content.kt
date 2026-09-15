@@ -43,16 +43,22 @@ data class VodItem(
 )
 
 /**
- * A series. Xtream only: M3U playlists flatten series into individual entries, so
- * a playlist source reports them as [VodItem]s instead.
+ * A series.
+ *
+ * Xtream returns these directly. A playlist has no such concept — it lists episodes
+ * as flat entries — so for M3U sources these are reconstructed by grouping
+ * `/series/` rows by the show name parsed out of their titles.
  */
 data class Series(
     val id: String,
     val name: String,
     val coverUrl: String? = null,
     val categoryId: String? = null,
+    val categoryName: String? = null,
     val plot: String? = null,
     val rating: Double? = null,
+    /** How many episodes are known, when the source can say. */
+    val episodeCount: Int? = null,
 )
 
 /** One episode of a [Series], grouped by [seasonNumber]. */

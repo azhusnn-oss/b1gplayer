@@ -39,7 +39,7 @@ class M3uContentSourceTest {
         val result = source.connect()
 
         assertTrue(result is ConnectResult.Success)
-        assertEquals("3 channels, 1 on-demand items", (result as ConnectResult.Success).summary)
+        assertEquals("3 channels, 1 movie", (result as ConnectResult.Success).summary)
     }
 
     @Test

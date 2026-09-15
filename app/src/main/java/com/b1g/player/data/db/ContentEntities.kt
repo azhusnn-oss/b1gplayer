@@ -52,6 +52,40 @@ data class VodEntity(
     val headersJson: String,
 )
 
+/**
+ * One episode of a series.
+ *
+ * The show's own details repeat on every row because that is how a playlist states
+ * them — there is no series record to read — and the series list is a GROUP BY over
+ * these rather than a second table that could drift out of step.
+ */
+@Entity(
+    tableName = "episodes",
+    indices = [
+        Index("sourceId", "seriesId"),
+        Index("sourceId", "categoryId"),
+        Index("sourceId", "seriesName"),
+    ],
+)
+data class EpisodeEntity(
+    @PrimaryKey(autoGenerate = true) val rowId: Long = 0,
+    val sourceId: String,
+    val seriesId: String,
+    val seriesName: String,
+    val seriesCover: String?,
+    val categoryId: String?,
+    val categoryName: String?,
+    val contentId: String,
+    val seasonNumber: Int,
+    val episodeNumber: Int,
+    val title: String,
+    val plot: String?,
+    val durationSeconds: Int?,
+    val stillUrl: String?,
+    val streamUrl: String,
+    val headersJson: String,
+)
+
 /** What is known about a stored playlist as a whole. */
 @Entity(tableName = "source_meta")
 data class SourceMetaEntity(
@@ -64,4 +98,16 @@ data class SourceMetaEntity(
 data class CategoryRow(
     val categoryId: String,
     val categoryName: String?,
+)
+
+/** Projection for the grouped series query. */
+data class SeriesRow(
+    val seriesId: String,
+    // Nullable because they come from MIN() over the group, which Room treats as
+    // possibly null even though a group always has rows.
+    val seriesName: String?,
+    val seriesCover: String?,
+    val categoryId: String?,
+    val categoryName: String?,
+    val episodeCount: Int,
 )

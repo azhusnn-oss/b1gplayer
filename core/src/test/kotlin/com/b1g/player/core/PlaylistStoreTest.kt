@@ -10,6 +10,7 @@ import com.b1g.player.core.source.ConnectResult
 import com.b1g.player.core.source.M3uContentSource
 import com.b1g.player.core.store.ContentSink
 import com.b1g.player.core.store.ContentStore
+import com.b1g.player.core.store.EpisodeRow
 import com.b1g.player.core.store.InMemoryContentStore
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -51,6 +52,7 @@ class PlaylistStoreTest {
                         sink.live(channels)
                     }
                     override fun vod(items: List<VodItem>) = sink.vod(items)
+                    override fun episodes(rows: List<EpisodeRow>) = sink.episodes(rows)
                 })
             }
         }

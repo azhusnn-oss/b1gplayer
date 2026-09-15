@@ -2,14 +2,18 @@ package com.b1g.player.data
 
 import com.b1g.player.core.model.Category
 import com.b1g.player.core.model.ContentKind
+import com.b1g.player.core.model.Episode
 import com.b1g.player.core.model.LiveChannel
+import com.b1g.player.core.model.Series
 import com.b1g.player.core.model.StreamRequest
 import com.b1g.player.core.model.VodItem
 import com.b1g.player.core.store.ContentCounts
 import com.b1g.player.core.store.ContentSink
 import com.b1g.player.core.store.ContentStore
+import com.b1g.player.core.store.EpisodeRow
 import com.b1g.player.data.db.B1gDatabase
 import com.b1g.player.data.db.ChannelEntity
+import com.b1g.player.data.db.EpisodeEntity
 import com.b1g.player.data.db.SourceMetaEntity
 import com.b1g.player.data.db.VodEntity
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +47,7 @@ class RoomContentStore(
             database.runInTransaction(Runnable {
                 dao.deleteChannels(sourceId)
                 dao.deleteVod(sourceId)
+                dao.deleteEpisodes(sourceId)
 
                 fill(object : ContentSink {
                     override fun header(epgUrl: String?) {
@@ -56,6 +61,10 @@ class RoomContentStore(
                     override fun vod(items: List<VodItem>) {
                         dao.insertVod(items.map { it.toEntity(sourceId) })
                     }
+
+                    override fun episodes(rows: List<EpisodeRow>) {
+                        dao.insertEpisodes(rows.map { it.toEntity(sourceId) })
+                    }
                 })
 
                 dao.upsertMeta(SourceMetaEntity(sourceId, now(), playlistEpgUrl))
@@ -67,7 +76,7 @@ class RoomContentStore(
             val rows = when (kind) {
                 ContentKind.LIVE -> dao.channelCategories(sourceId)
                 ContentKind.VOD -> dao.vodCategories(sourceId)
-                ContentKind.SERIES -> return@withContext emptyList()
+                ContentKind.SERIES -> dao.seriesCategories(sourceId)
             }
             rows.map { Category(id = it.categoryId, name = it.categoryName ?: it.categoryId, kind = kind) }
         }
@@ -92,8 +101,34 @@ class RoomContentStore(
         dao.vod(sourceId, categoryId, likePattern(query), limit, offset).map { it.toVod() }
     }
 
+    override suspend fun series(
+        sourceId: String,
+        categoryId: String?,
+        query: String?,
+        limit: Int,
+        offset: Int,
+    ): List<Series> = withContext(Dispatchers.IO) {
+        dao.series(sourceId, categoryId, likePattern(query), limit, offset).map { row ->
+            Series(
+                id = row.seriesId,
+                name = row.seriesName ?: row.seriesId,
+                coverUrl = row.seriesCover,
+                categoryId = row.categoryId,
+                categoryName = row.categoryName,
+                episodeCount = row.episodeCount,
+            )
+        }
+    }
+
+    override suspend fun episodes(sourceId: String, seriesId: String): List<Episode> =
+        withContext(Dispatchers.IO) { dao.episodes(sourceId, seriesId).map { it.toEpisode() } }
+
     override suspend fun counts(sourceId: String): ContentCounts = withContext(Dispatchers.IO) {
-        ContentCounts(live = dao.channelCount(sourceId), vod = dao.vodCount(sourceId))
+        ContentCounts(
+            live = dao.channelCount(sourceId),
+            vod = dao.vodCount(sourceId),
+            episodes = dao.episodeCount(sourceId),
+        )
     }
 
     override suspend fun lastRefreshedAt(sourceId: String): Long? =
@@ -106,6 +141,7 @@ class RoomContentStore(
         database.runInTransaction(Runnable {
             dao.deleteChannels(sourceId)
             dao.deleteVod(sourceId)
+            dao.deleteEpisodes(sourceId)
             dao.deleteMeta(sourceId)
         })
     }
@@ -164,6 +200,36 @@ class RoomContentStore(
         addedEpochSeconds = addedEpochSeconds,
         streamUrl = stream.url,
         headersJson = encodeHeaders(stream.headers),
+    )
+
+    private fun EpisodeRow.toEntity(sourceId: String) = EpisodeEntity(
+        sourceId = sourceId,
+        seriesId = series.id,
+        seriesName = series.name,
+        seriesCover = series.coverUrl,
+        categoryId = series.categoryId,
+        categoryName = series.categoryName,
+        contentId = episode.id,
+        seasonNumber = episode.seasonNumber,
+        episodeNumber = episode.episodeNumber,
+        title = episode.title,
+        plot = episode.plot,
+        durationSeconds = episode.durationSeconds,
+        stillUrl = episode.stillUrl,
+        streamUrl = episode.stream.url,
+        headersJson = encodeHeaders(episode.stream.headers),
+    )
+
+    private fun EpisodeEntity.toEpisode() = Episode(
+        id = contentId,
+        seriesId = seriesId,
+        seasonNumber = seasonNumber,
+        episodeNumber = episodeNumber,
+        title = title,
+        plot = plot,
+        durationSeconds = durationSeconds,
+        stillUrl = stillUrl,
+        stream = StreamRequest(streamUrl, decodeHeaders(headersJson)),
     )
 
     private fun VodEntity.toVod() = VodItem(

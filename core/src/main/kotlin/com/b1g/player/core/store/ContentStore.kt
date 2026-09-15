@@ -2,8 +2,22 @@ package com.b1g.player.core.store
 
 import com.b1g.player.core.model.Category
 import com.b1g.player.core.model.ContentKind
+import com.b1g.player.core.model.Episode
 import com.b1g.player.core.model.LiveChannel
+import com.b1g.player.core.model.Series
 import com.b1g.player.core.model.VodItem
+
+/**
+ * One `/series/` playlist row together with the show it belongs to.
+ *
+ * The show is repeated on every episode because a playlist states it that way —
+ * there is no separate series record to read — and the store collapses the
+ * repetition when it reports the series list.
+ */
+data class EpisodeRow(
+    val series: Series,
+    val episode: Episode,
+)
 
 /**
  * Receives parsed entries during [ContentStore.replace].
@@ -18,10 +32,11 @@ interface ContentSink {
 
     fun live(channels: List<LiveChannel>)
     fun vod(items: List<VodItem>)
+    fun episodes(rows: List<EpisodeRow>)
 }
 
-data class ContentCounts(val live: Int, val vod: Int) {
-    val isEmpty: Boolean get() = live == 0 && vod == 0
+data class ContentCounts(val live: Int, val vod: Int, val episodes: Int = 0) {
+    val isEmpty: Boolean get() = live == 0 && vod == 0 && episodes == 0
 }
 
 /**
@@ -59,6 +74,18 @@ interface ContentStore {
         limit: Int = DEFAULT_PAGE,
         offset: Int = 0,
     ): List<VodItem>
+
+    /** Distinct shows, collapsed from the stored episodes. */
+    suspend fun series(
+        sourceId: String,
+        categoryId: String? = null,
+        query: String? = null,
+        limit: Int = DEFAULT_PAGE,
+        offset: Int = 0,
+    ): List<Series>
+
+    /** Every episode of one show, in season and episode order. */
+    suspend fun episodes(sourceId: String, seriesId: String): List<Episode>
 
     suspend fun counts(sourceId: String): ContentCounts
 

@@ -125,10 +125,12 @@ class BrowseViewModel(private val source: ContentSource) : ViewModel() {
                         BrowseItem(it.id, it.name, it.rating?.let { r -> "★ $r" }, it.logoUrl, it.stream)
                     }
 
-                // Series are a short list a panel returns whole; there is no page to ask for.
                 ContentKind.SERIES ->
-                    if (offset > 0) emptyList() else source.series(current.selectedCategoryId).map {
-                        BrowseItem(it.id, it.name, it.plot?.take(80), it.coverUrl, null)
+                    source.series(current.selectedCategoryId, query, PAGE, offset).map {
+                        val episodes = it.episodeCount?.let { count ->
+                            if (count == 1) "1 episode" else "$count episodes"
+                        }
+                        BrowseItem(it.id, it.name, episodes ?: it.plot?.take(80), it.coverUrl, null)
                     }
             }
             categories to page
@@ -139,7 +141,7 @@ class BrowseViewModel(private val source: ContentSource) : ViewModel() {
                     isLoadingMore = false,
                     categories = categories,
                     items = if (offset == 0) page else it.items + page,
-                    endReached = page.size < PAGE || current.kind == ContentKind.SERIES,
+                    endReached = page.size < PAGE,
                 )
             }
         }.onFailure { error ->

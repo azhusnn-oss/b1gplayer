@@ -36,6 +36,7 @@ class XtreamContentSource(
     private var cachedKey: Pair<ContentKind, String?>? = null
     private var cachedLive: List<LiveChannel> = emptyList()
     private var cachedVod: List<VodItem> = emptyList()
+    private var cachedSeries: List<Series> = emptyList()
 
     override suspend fun connect(): ConnectResult = try {
         when (val result = client.authenticate(config)) {
@@ -67,6 +68,7 @@ class XtreamContentSource(
         if (cachedKey != key) {
             cachedLive = client.liveStreams(config, categoryId, account?.preferredLiveExtension ?: "m3u8")
             cachedVod = emptyList()
+            cachedSeries = emptyList()
             cachedKey = key
         }
         cachedLive.asSequence().filter { matches(it.name, query) }.drop(offset).take(limit).toList()
@@ -82,12 +84,27 @@ class XtreamContentSource(
         if (cachedKey != key) {
             cachedVod = client.vodStreams(config, categoryId)
             cachedLive = emptyList()
+            cachedSeries = emptyList()
             cachedKey = key
         }
         cachedVod.asSequence().filter { matches(it.name, query) }.drop(offset).take(limit).toList()
     }
 
-    override suspend fun series(categoryId: String?): List<Series> = client.series(config, categoryId)
+    override suspend fun series(
+        categoryId: String?,
+        query: String?,
+        limit: Int,
+        offset: Int,
+    ): List<Series> = pageLock.withLock {
+        val key = ContentKind.SERIES to categoryId
+        if (cachedKey != key) {
+            cachedSeries = client.series(config, categoryId)
+            cachedLive = emptyList()
+            cachedVod = emptyList()
+            cachedKey = key
+        }
+        cachedSeries.asSequence().filter { matches(it.name, query) }.drop(offset).take(limit).toList()
+    }
 
     override suspend fun episodes(seriesId: String): List<Episode> = client.episodes(config, seriesId)
 

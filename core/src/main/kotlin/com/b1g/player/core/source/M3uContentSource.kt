@@ -4,6 +4,7 @@ import com.b1g.player.core.http.HttpClient
 import com.b1g.player.core.http.HttpException
 import com.b1g.player.core.m3u.M3uEntry
 import com.b1g.player.core.m3u.M3uParser
+import com.b1g.player.core.m3u.SeriesNaming
 import com.b1g.player.core.model.Category
 import com.b1g.player.core.model.ContentKind
 import com.b1g.player.core.model.EpgEntry
@@ -16,6 +17,7 @@ import com.b1g.player.core.model.VodItem
 import com.b1g.player.core.store.ContentCounts
 import com.b1g.player.core.store.ContentSink
 import com.b1g.player.core.store.ContentStore
+import com.b1g.player.core.store.EpisodeRow
 import com.b1g.player.core.store.InMemoryContentStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -48,7 +50,13 @@ class M3uContentSource(
         if (counts.isEmpty) {
             ConnectResult.Failure("Playlist loaded but contained no channels")
         } else {
-            ConnectResult.Success("${counts.live} channels, ${counts.vod} on-demand items")
+            ConnectResult.Success(
+                listOfNotNull(
+                    plural(counts.live, "channel"),
+                    plural(counts.vod, "movie").takeIf { counts.vod > 0 },
+                    plural(counts.episodes, "episode").takeIf { counts.episodes > 0 },
+                ).joinToString()
+            )
         }
     } catch (e: HttpException) {
         ConnectResult.Failure("Playlist rejected the request (HTTP ${e.statusCode})", e)
@@ -78,10 +86,19 @@ class M3uContentSource(
         offset: Int,
     ): List<VodItem> = store.vod(config.id, categoryId, query, limit, offset)
 
-    /** A flat playlist has no season/episode structure to report. */
-    override suspend fun series(categoryId: String?): List<Series> = emptyList()
+    /**
+     * Shows reconstructed from `/series/` entries, whose titles carry the season and
+     * episode the playlist itself does not model.
+     */
+    override suspend fun series(
+        categoryId: String?,
+        query: String?,
+        limit: Int,
+        offset: Int,
+    ): List<Series> = store.series(config.id, categoryId, query, limit, offset)
 
-    override suspend fun episodes(seriesId: String): List<Episode> = emptyList()
+    override suspend fun episodes(seriesId: String): List<Episode> =
+        store.episodes(config.id, seriesId)
 
     /** Prefer the URL the user typed; fall back to the one the playlist declared. */
     override suspend fun epgUrl(): String? = config.epgUrl ?: store.epgUrl(config.id)
@@ -119,6 +136,7 @@ class M3uContentSource(
     private fun parseInto(body: InputStream, sink: ContentSink) {
         val live = ArrayList<LiveChannel>(batchSize)
         val vod = ArrayList<VodItem>(batchSize)
+        val episodes = ArrayList<EpisodeRow>(batchSize)
 
         M3uParser.parse(
             body,
@@ -132,7 +150,27 @@ class M3uContentSource(
                             live.clear()
                         }
                     }
-                    ContentKind.VOD, ContentKind.SERIES -> {
+
+                    ContentKind.SERIES -> {
+                        val row = entry.toEpisodeRow(config)
+                        if (row != null) {
+                            episodes += row
+                            if (episodes.size >= batchSize) {
+                                sink.episodes(episodes.toList())
+                                episodes.clear()
+                            }
+                        } else {
+                            // No season and episode in the title, so there is no show
+                            // to group it under; it is still a playable item.
+                            vod += entry.toVodItem(config)
+                            if (vod.size >= batchSize) {
+                                sink.vod(vod.toList())
+                                vod.clear()
+                            }
+                        }
+                    }
+
+                    ContentKind.VOD -> {
                         vod += entry.toVodItem(config)
                         if (vod.size >= batchSize) {
                             sink.vod(vod.toList())
@@ -145,6 +183,7 @@ class M3uContentSource(
 
         if (live.isNotEmpty()) sink.live(live.toList())
         if (vod.isNotEmpty()) sink.vod(vod.toList())
+        if (episodes.isNotEmpty()) sink.episodes(episodes.toList())
     }
 
     companion object {
@@ -153,6 +192,9 @@ class M3uContentSource(
 
         /** Providers edit their line-ups daily rather than hourly. */
         const val DEFAULT_MAX_CACHE_AGE = 12L * 60 * 60 * 1000
+
+        private fun plural(count: Int, noun: String): String =
+            if (count == 1) "$count $noun" else "$count ${noun}s"
 
         /** Group titles are the only identity a playlist gives a category. */
         internal fun categoryId(groupTitle: String): String = groupTitle.lowercase().trim()
@@ -184,6 +226,31 @@ class M3uContentSource(
             epgChannelId = tvgId,
             stream = streamRequest(config),
         )
+
+        /** Null when the title carries no season and episode to group by. */
+        internal fun M3uEntry.toEpisodeRow(config: SourceConfig.M3u): EpisodeRow? {
+            val parsed = SeriesNaming.parse(name) ?: return null
+            val seriesId = SeriesNaming.seriesId(parsed.showName)
+
+            return EpisodeRow(
+                series = Series(
+                    id = seriesId,
+                    name = parsed.showName,
+                    coverUrl = logoUrl,
+                    categoryId = groupTitle?.let(::categoryId),
+                    categoryName = groupTitle,
+                ),
+                episode = Episode(
+                    id = stableId(this),
+                    seriesId = seriesId,
+                    seasonNumber = parsed.season,
+                    episodeNumber = parsed.episodeNumber,
+                    title = parsed.episodeTitle ?: name,
+                    stillUrl = logoUrl,
+                    stream = streamRequest(config),
+                ),
+            )
+        }
 
         internal fun M3uEntry.toVodItem(config: SourceConfig.M3u) = VodItem(
             id = stableId(this),
