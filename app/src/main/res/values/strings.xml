@@ -29,5 +29,6 @@
     <string name="browse_search">Search</string>
     <string name="browse_empty">Nothing here yet</string>
     <string name="browse_retry">Retry</string>
+    <string name="browse_refresh">Refresh playlist</string>
     <string name="browse_sign_out">Remove source</string>
 </resources>

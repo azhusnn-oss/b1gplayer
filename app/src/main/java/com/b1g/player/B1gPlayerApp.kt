@@ -7,7 +7,9 @@ import com.b1g.player.core.http.OkHttpEngine
 import com.b1g.player.core.source.ContentSource
 import com.b1g.player.core.source.ContentSourceFactory
 import com.b1g.player.data.CrashReporter
+import com.b1g.player.data.RoomContentStore
 import com.b1g.player.data.SourceStore
+import com.b1g.player.data.db.B1gDatabase
 
 /**
  * Manual dependency container.
@@ -17,7 +19,13 @@ import com.b1g.player.data.SourceStore
  */
 class AppContainer(context: Context) {
     val httpClient: HttpClient = OkHttpEngine()
-    val sourceFactory = ContentSourceFactory(httpClient)
+
+    // Parsed playlists live here rather than in memory, so a large catalogue neither
+    // exhausts the heap nor has to be re-downloaded on every launch.
+    val database = B1gDatabase.create(context.applicationContext)
+    val contentStore = RoomContentStore(database)
+
+    val sourceFactory = ContentSourceFactory(httpClient, contentStore)
     val sourceStore = SourceStore(context.applicationContext)
     val crashReporter = CrashReporter(context.applicationContext)
 

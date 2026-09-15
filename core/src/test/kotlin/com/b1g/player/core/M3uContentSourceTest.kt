@@ -45,6 +45,7 @@ class M3uContentSourceTest {
     @Test
     fun `separates live entries from on-demand entries`() = runTest {
         val source = M3uContentSource(config(), FakeHttpClient(playlist))
+        source.connect()
 
         assertEquals(listOf("BBC One", "Sky Sports", "Das Erste"), source.liveChannels().map { it.name })
         assertEquals(listOf("Some Film"), source.vod().map { it.name })
@@ -53,6 +54,7 @@ class M3uContentSourceTest {
     @Test
     fun `derives categories from group titles and filters by them`() = runTest {
         val source = M3uContentSource(config(), FakeHttpClient(playlist))
+        source.connect()
 
         val categories = source.categories(ContentKind.LIVE)
         assertEquals(listOf("DE", "UK"), categories.map { it.name })
@@ -64,6 +66,7 @@ class M3uContentSourceTest {
     @Test
     fun `per-entry user agent overrides the account-wide one`() = runTest {
         val source = M3uContentSource(config(), FakeHttpClient(playlist))
+        source.connect()
         val channels = source.liveChannels()
 
         assertEquals("B1GPlayer/1.0", channels[0].stream.headers["User-Agent"])
@@ -77,12 +80,14 @@ class M3uContentSourceTest {
         assertEquals("http://host/xmltv.php", declared.epgUrl())
 
         val overridden = M3uContentSource(config(epgUrl = "http://mine/guide.xml"), FakeHttpClient(playlist))
+        overridden.connect()
         assertEquals("http://mine/guide.xml", overridden.epgUrl())
     }
 
     @Test
     fun `ids stay stable across a refresh so favourites survive`() = runTest {
         val source = M3uContentSource(config(), FakeHttpClient(playlist))
+        source.connect()
 
         val before = source.liveChannels().map { it.id }
         source.refresh()
@@ -101,7 +106,9 @@ class M3uContentSourceTest {
             http://host:8080/live/u/p/11.ts
         """.trimIndent()
 
-        val channels = M3uContentSource(config(), FakeHttpClient(shared)).liveChannels()
+        val source = M3uContentSource(config(), FakeHttpClient(shared))
+        source.connect()
+        val channels = source.liveChannels()
 
         assertEquals(2, channels.map { it.id }.distinct().size)
         // The guide id is still shared, which is what EPG matching needs.
